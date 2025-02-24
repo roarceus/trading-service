@@ -20,7 +20,7 @@ jobs:
       run: packer init ./packer/aws.pkr.hcl
 
     - name: Run Packer Fmt
-      run: packer fmt -check -diff ./packer/aws.pkr.hcl
+      run: packer fmt -check -diff ./packer/ami.pkr.hcl
 
     - name: Run Packer Validate
       env:
