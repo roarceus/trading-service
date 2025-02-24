@@ -42,4 +42,4 @@ jobs:
           -var "db_password=${DB_PASSWORD}" \
           -var "dockerhub_username=${DOCKERHUB_USERNAME}" \
           -var "dockerhub_token=${DOCKERHUB_TOKEN}" \
-          ./packer/aws.pkr.hcl
+          ./packer/ami.pkr.hcl
