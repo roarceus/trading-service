@@ -44,7 +44,7 @@ variable "docker_username" {
   type = string
 }
 
-variable "docker_password" {
+variable "docker_token" {
   type      = string
   sensitive = true
 }
@@ -82,7 +82,7 @@ build {
       "DB_USER=${var.db_user}",
       "DB_PASSWORD=${var.db_password}",
       "DOCKER_USERNAME=${var.docker_username}",
-      "DOCKER_PASSWORD=${var.docker_password}"
+      "DOCKER_TOKEN=${var.docker_token}"
     ]
     script = "scripts/setup.sh"
   }

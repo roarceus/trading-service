@@ -23,7 +23,7 @@ sudo -u postgres psql -c "CREATE USER $DB_USER WITH PASSWORD '$DB_PASSWORD';"
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE trading_db TO $DB_USER;"
 
 # Configure Docker credentials and pull image
-echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
+echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USERNAME" --password-stdin
 docker pull $DOCKER_USERNAME/trading-service:latest
 
 # Create startup script
