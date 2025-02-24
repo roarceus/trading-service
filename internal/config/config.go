@@ -16,8 +16,24 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
-	if err := godotenv.Load(); err != nil {
-		return nil, fmt.Errorf("error loading .env file: %w", err)
+	envLocations := []string{
+		".env",                      // Current directory
+		"/opt/trading-service/.env", // System directory
+		"../.env",                   // Parent directory
+	}
+
+	var loaded bool
+	for _, loc := range envLocations {
+		if _, err := os.Stat(loc); err == nil {
+			if err := godotenv.Load(loc); err == nil {
+				loaded = true
+				break
+			}
+		}
+	}
+
+	if !loaded {
+		return nil, fmt.Errorf("no environment file found")
 	}
 
 	return &Config{

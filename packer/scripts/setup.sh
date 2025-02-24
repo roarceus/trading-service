@@ -1,86 +1,146 @@
 #!/bin/bash
 set -e
 
-# Update system
-sudo apt-get update
-sudo apt-get upgrade -y
+echo "Starting setup script..."
 
-# Install required dependencies
-sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common gnupg2 pass
+# Update and install dependencies
+echo "Updating system and installing dependencies..."
+sudo apt-get update
+sudo apt-get install -y \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release \
+    postgresql \
+    postgresql-contrib
 
 # Install Docker
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-sudo apt-get update
-sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+echo "Installing Docker..."
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
 
-# Enable Docker service
-sudo systemctl enable docker
+# Start Docker service
+echo "Starting Docker service..."
 sudo systemctl start docker
+sudo systemctl enable docker
 
-# Add user to the Docker group
-sudo usermod -aG docker $USER
-newgrp docker  # Apply changes immediately
+# Wait for Docker to be ready
+echo "Waiting for Docker to be ready..."
+timeout 60 bash -c 'until sudo docker info >/dev/null 2>&1; do echo "Waiting for Docker to start..."; sleep 2; done'
 
-# Install PostgreSQL
-sudo apt-get install -y postgresql postgresql-contrib
-sudo systemctl enable postgresql
-sudo systemctl start postgresql
+# Create application directory and .env file
+echo "Creating application directory..."
+sudo mkdir -p /opt/trading-service
+
+# Set up environment file
+echo "Setting up environment file..."
+sudo tee /opt/trading-service/.env <<EOF
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=${DB_USER}
+DB_PASSWORD=${DB_PASSWORD}
+DB_NAME=trading_db
+EOF
+
+# Set proper permissions
+sudo chown root:root /opt/trading-service/.env
+sudo chmod 600 /opt/trading-service/.env
+
+# Log in to Docker Hub
+echo "Logging into Docker Hub..."
+echo "${DOCKER_TOKEN}" | sudo docker login -u "${DOCKER_USERNAME}" --password-stdin
+
+# Pull the latest image
+echo "Pulling Docker image..."
+sudo docker pull ${DOCKER_USERNAME}/trading-service:latest
+
+# Create systemd service file
+echo "Creating systemd service file..."
+sudo tee /etc/systemd/system/trading-service.service <<EOF
+[Unit]
+Description=Trading Service Container
+Requires=docker.service postgresql.service
+After=docker.service postgresql.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=10
+User=root
+Group=root
+EnvironmentFile=/opt/trading-service/.env
+ExecStartPre=/bin/bash -c 'until pg_isready -h localhost -p 5432; do sleep 2; done'
+ExecStartPre=-/usr/bin/docker stop trading-service
+ExecStartPre=-/usr/bin/docker rm trading-service
+ExecStart=/usr/bin/docker run --name trading-service \
+    --network="host" \
+    -e DB_HOST=localhost \
+    -e DB_PORT=5432 \
+    -e DB_USER=${DB_USER} \
+    -e DB_PASSWORD=${DB_PASSWORD} \
+    -e DB_NAME=trading_db \
+    -v /opt/trading-service/.env:/app/.env \
+    ${DOCKER_USERNAME}/trading-service:latest
+ExecStop=/usr/bin/docker stop trading-service
+StandardOutput=append:/var/log/trading-service.log
+StandardError=append:/var/log/trading-service.error.log
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Create log files with proper permissions
+sudo touch /var/log/trading-service.log /var/log/trading-service.error.log
+sudo chmod 644 /var/log/trading-service.log /var/log/trading-service.error.log
 
 # Configure PostgreSQL
+echo "Configuring PostgreSQL..."
+sudo -u postgres psql -c "CREATE USER ${DB_USER} WITH PASSWORD '${DB_PASSWORD}';"
 sudo -u postgres psql -c "CREATE DATABASE trading_db;"
-sudo -u postgres psql -c "CREATE USER $DB_USER WITH PASSWORD '$DB_PASSWORD';"
-sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE trading_db TO $DB_USER;"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE trading_db TO ${DB_USER};"
 
-# Install Docker Credential Helper for Pass
-sudo apt-get install -y golang-go
-export GOPATH=$HOME/go
-export PATH=$GOPATH/bin:$PATH
+# Update PostgreSQL configuration to allow local connections
+echo "Updating PostgreSQL configuration..."
+sudo sed -i 's/peer/md5/g' /etc/postgresql/*/main/pg_hba.conf
+sudo sed -i 's/ident/md5/g' /etc/postgresql/*/main/pg_hba.conf
 
-go install github.com/docker/docker-credential-helpers/pass@latest
-sudo mv ~/go/bin/docker-credential-pass /usr/local/bin/
-sudo chmod +x /usr/local/bin/docker-credential-pass
+# Restart PostgreSQL
+echo "Restarting PostgreSQL..."
+sudo systemctl restart postgresql
 
-# Configure Docker to use the pass credential helper
-mkdir -p ~/.docker
-echo '{ "credsStore": "pass" }' | tee ~/.docker/config.json
+# Wait for PostgreSQL to be ready
+echo "Waiting for PostgreSQL to be ready..."
+timeout 60 bash -c 'until pg_isready; do echo "Waiting for PostgreSQL to start..."; sleep 2; done'
 
-# Initialize pass for secure credential storage
-gpg --batch --gen-key <<EOF
-%no-protection
-Key-Type: RSA
-Key-Length: 4096
-Subkey-Type: RSA
-Subkey-Length: 4096
-Name-Real: Docker Credential Helper
-Name-Email: docker@localhost
-Expire-Date: 0
-%commit
-EOF
+# Verify environment file exists
+echo "Verifying environment file..."
+if [ ! -f /opt/trading-service/.env ]; then
+    echo "ERROR: Environment file not found!"
+    exit 1
+fi
 
-# Initialize pass with the GPG key
-pass init "Docker Credential Helper"
+# Enable and start the trading service
+echo "Enabling and starting trading service..."
+sudo systemctl daemon-reload
+sudo systemctl enable trading-service
+sudo systemctl start trading-service || {
+    echo "Failed to start trading-service. Checking logs..."
+    echo "Environment file contents:"
+    sudo cat /opt/trading-service/.env
+    echo "System logs:"
+    sudo journalctl -u trading-service --no-pager -n 50
+    sudo docker ps -a
+    sudo docker logs trading-service || true
+    exit 1
+}
 
-# Login to Docker securely
-echo "$DOCKER_TOKEN" | docker login --username "$DOCKER_USERNAME" --password-stdin
+# Verify service status
+echo "Verifying service status..."
+sudo systemctl status trading-service --no-pager
 
-# Pull Docker image
-docker pull $DOCKER_USERNAME/trading-service:latest
+# Clean up
+echo "Cleaning up..."
+sudo docker system prune -f
 
-# Create service directory
-sudo mkdir -p /opt/trading-service
-sudo chown -R $USER:$USER /opt/trading-service
-
-# Create startup script
-cat << EOF > /opt/trading-service/start.sh
-#!/bin/bash
-docker run -d \
-  --name trading-service \
-  --network="host" \
-  --env-file /opt/trading-service/.env \
-  -p 8080:8080 \
-  $DOCKER_USERNAME/trading-service:latest
-EOF
-
-# Make startup script executable
-chmod +x /opt/trading-service/start.sh
+echo "Setup complete!"
