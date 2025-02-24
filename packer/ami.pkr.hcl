@@ -84,7 +84,7 @@ build {
       "DOCKER_USERNAME=${var.docker_username}",
       "DOCKER_TOKEN=${var.docker_token}"
     ]
-    script = "/scripts/setup.sh"
+    script = "./scripts/setup.sh"
   }
 
   provisioner "file" {
