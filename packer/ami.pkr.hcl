@@ -77,16 +77,6 @@ build {
     "source.amazon-ebs.ubuntu"
   ]
 
-  provisioner "shell" {
-    environment_vars = [
-      "DB_USER=${var.db_user}",
-      "DB_PASSWORD=${var.db_password}",
-      "DOCKER_USERNAME=${var.docker_username}",
-      "DOCKER_TOKEN=${var.docker_token}"
-    ]
-    script = "./packer/scripts/setup.sh"
-  }
-
   provisioner "file" {
     content     = <<EOF
     DB_HOST=localhost
@@ -99,9 +89,20 @@ build {
   }
 
   provisioner "shell" {
+    environment_vars = [
+      "DB_USER=${var.db_user}",
+      "DB_PASSWORD=${var.db_password}",
+      "DOCKER_USERNAME=${var.docker_username}",
+      "DOCKER_TOKEN=${var.docker_token}"
+    ]
+    script = "./packer/scripts/setup.sh"
+  }
+
+  provisioner "shell" {
     inline = [
       "sudo mkdir -p /opt/trading-service",
       "sudo mv /tmp/app.env /opt/trading-service/.env",
+      "sudo chown root:root /opt/trading-service/.env",
       "sudo chmod 600 /opt/trading-service/.env"
     ]
   }
