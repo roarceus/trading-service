@@ -99,11 +99,18 @@ echo "Configuring PostgreSQL..."
 sudo -u postgres psql -c "CREATE USER ${DB_USER} WITH PASSWORD '${DB_PASSWORD}';"
 sudo -u postgres psql -c "CREATE DATABASE trading_db;"
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE trading_db TO ${DB_USER};"
+# Grant schema permissions
+sudo -u postgres psql -d trading_db -c "GRANT ALL ON SCHEMA public TO ${DB_USER};"
+sudo -u postgres psql -d trading_db -c "ALTER USER ${DB_USER} WITH SUPERUSER;"
 
 # Update PostgreSQL configuration to allow local connections
 echo "Updating PostgreSQL configuration..."
 sudo sed -i 's/peer/md5/g' /etc/postgresql/*/main/pg_hba.conf
 sudo sed -i 's/ident/md5/g' /etc/postgresql/*/main/pg_hba.conf
+
+# Update postgresql.conf to listen on all interfaces
+echo "Updating PostgreSQL to listen on all interfaces..."
+sudo sed -i "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" /etc/postgresql/*/main/postgresql.conf
 
 # Restart PostgreSQL
 echo "Restarting PostgreSQL..."
