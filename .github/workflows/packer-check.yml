@@ -17,7 +17,7 @@ jobs:
       uses: hashicorp/setup-packer@v3
 
     - name: Initialize Packer
-      run: packer init ./packer/aws.pkr.hcl
+      run: packer init ./packer/ami.pkr.hcl
 
     - name: Run Packer Fmt
       run: packer fmt -check -diff ./packer/ami.pkr.hcl
