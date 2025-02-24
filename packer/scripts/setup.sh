@@ -18,9 +18,9 @@ sudo apt-get install -y docker-ce docker-ce-cli containerd.io
 sudo systemctl enable docker
 sudo systemctl start docker
 
-# Add user to the Docker group (avoids using sudo for Docker commands)
+# Add user to the Docker group
 sudo usermod -aG docker $USER
-newgrp docker  # Apply changes to the current session
+newgrp docker  # Apply changes immediately
 
 # Install PostgreSQL
 sudo apt-get install -y postgresql postgresql-contrib
@@ -32,11 +32,20 @@ sudo -u postgres psql -c "CREATE DATABASE trading_db;"
 sudo -u postgres psql -c "CREATE USER $DB_USER WITH PASSWORD '$DB_PASSWORD';"
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE trading_db TO $DB_USER;"
 
-# Configure Docker credential store securely
+# Install Docker Credential Helper for Pass
+sudo apt-get install -y golang-go
+export GOPATH=$HOME/go
+export PATH=$GOPATH/bin:$PATH
+
+go install github.com/docker/docker-credential-helpers/pass@latest
+sudo mv ~/go/bin/docker-credential-pass /usr/local/bin/
+sudo chmod +x /usr/local/bin/docker-credential-pass
+
+# Configure Docker to use the pass credential helper
 mkdir -p ~/.docker
 echo '{ "credsStore": "pass" }' | tee ~/.docker/config.json
 
-# Initialize pass for secure credential storage (requires GPG setup)
+# Initialize pass for secure credential storage
 gpg --batch --gen-key <<EOF
 %no-protection
 Key-Type: RSA
@@ -49,7 +58,7 @@ Expire-Date: 0
 %commit
 EOF
 
-# Configure pass to store credentials
+# Initialize pass with the GPG key
 pass init "Docker Credential Helper"
 
 # Login to Docker securely
