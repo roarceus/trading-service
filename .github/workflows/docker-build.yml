@@ -9,7 +9,7 @@ on:
 
 jobs:
   push-image:
-    name: "Build and Push Docker Image"
+    name: "Build Docker Image on PR"
     runs-on: ubuntu-latest
     
     steps:
