@@ -17,7 +17,7 @@ jobs:
       uses: hashicorp/setup-packer@v3
 
     - name: Initialize Packer
-      run: packer init ./packer/aws.pkr.hcl
+      run: packer init ./packer/ami.pkr.hcl
 
     - name: Run Packer Fmt
       run: packer fmt -check -diff ./packer/ami.pkr.hcl
@@ -27,13 +27,13 @@ jobs:
         AWS_SOURCE_AMI: ${{ secrets.AWS_SOURCE_AMI }}
         DB_USER: ${{ secrets.DB_USER }}
         DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-        DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+        DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
       run: |
         packer validate \
           -var "aws_source_ami=${AWS_SOURCE_AMI}" \
           -var "db_user=${DB_USER}" \
           -var "db_password=${DB_PASSWORD}" \
-          -var "dockerhub_username=${DOCKERHUB_USERNAME}" \
-          -var "dockerhub_token=${DOCKERHUB_TOKEN}" \
+          -var "docker_username=${DOCKER_USERNAME}" \
+          -var "docker_token=${DOCKER_TOKEN}" \
           ./packer/ami.pkr.hcl
