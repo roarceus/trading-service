@@ -1,0 +1,39 @@
+name: Packer Status Check
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  packer_check:
+    name: "Packer Format and Validation Check"
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Set up Packer
+      uses: hashicorp/setup-packer@v3
+
+    - name: Initialize Packer
+      run: packer init ./packer/aws.pkr.hcl
+
+    - name: Run Packer Fmt
+      run: packer fmt -check -diff ./packer/aws.pkr.hcl
+
+    - name: Run Packer Validate
+      env:
+        AWS_SOURCE_AMI: ${{ secrets.AWS_SOURCE_AMI }}
+        DB_USER: ${{ secrets.DB_USER }}
+        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      run: |
+        packer validate \
+          -var "aws_source_ami=${AWS_SOURCE_AMI}" \
+          -var "db_user=${DB_USER}" \
+          -var "db_password=${DB_PASSWORD}" \
+          -var "dockerhub_username=${DOCKERHUB_USERNAME}" \
+          -var "dockerhub_token=${DOCKERHUB_TOKEN}" \
+          ./packer/aws.pkr.hcl
